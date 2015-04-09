@@ -16,7 +16,7 @@ EXE = os.path.join(CODEDIR, 'main.exe') # default exe
 
 # autocomplete={'control':'ctr', 'geometry':'geo', 'dynamics':'dyn', 'surfacemb':'smb', 'fjordmelt':'fjo', 'basalmelt':'bas', 'calving':'cal'}
 
-def get_checksum(codedir=CODEDIR, interactive=False):
+def get_checksum(codedir=CODEDIR, interactive=False, warn_if_dirty=True):
     """ return git's checksum
     """
     cmd = 'cd {codedir} && git log | head -1 | sed "s/commit //"'.format(codedir=codedir)
@@ -35,9 +35,8 @@ def get_checksum(codedir=CODEDIR, interactive=False):
             if y != 'y':
                 print "Stopped by user."
                 sys.exit()
-        else:
-            print "git directory not clean"
-
+        elif warn_if_dirty:
+            warnings.warn("git directory not clean")
 
     return commit
 
