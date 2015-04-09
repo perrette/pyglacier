@@ -1,0 +1,271 @@
+#!/usr/bin/python
+""" monitor glacier evolution
+
+Usage:
+    view.py [<file> | --name NAME] ([--step=STEP] [--start=START] [--stop=STOP] | [--times=INDICES]) [--domain=DOMAIN] [--variable=VAR | --stress | --variables=VAR] [--mult=M] [--show] [--html] [--pdf] [--png]
+
+Options:
+    -h --help           Show this screen
+    <file>              output file to open: is derived from the control.nml file if not provided
+    --name NAME          experiment name (if provided, output file is derived from there)
+    --step STEP         Indicate a slice for time indices (start, stop, step)
+    --start START       
+    --stop STOP         
+    -v VAR --variable=VAR    Indicate another variable to plot than standard velocity and elevation
+    --variables=VAR     several variables to plot
+    --stress            shortcut for several variables
+    --mult=M            in comb with --variable or --variables, multiply output
+    --times INDICES     Provide a list of time indices.
+    --domain start,stop Define a x-domain to plot
+    --show              Display figure on screen (True by default if --html or --pdf is not provided)
+    --html              Save figure as HTML
+    --pdf               Save figure as PDF
+    --png               Save figure as PNG
+"""
+from __future__ import division
+import sys, os
+import numpy as np
+import matplotlib.pyplot as plt
+from docopt import docopt
+import dimarray as da
+import matplotlib.ticker as tick
+import mpld3
+
+class InfiniteList(object):
+    def __init__(self, x):
+        self.x = x
+    def __getitem__(self, index):
+        idx = np.mod(index, len(self.x)) # indexing modulo list length
+        return self.x[idx]
+
+def main():
+
+    args = docopt(__doc__)
+    # print(args)
+    if args['--name'] is not None:
+        glacier = args['--name']
+        filenc = "out/{}/output.nc".format(glacier)
+    elif args['<file>'] is None:
+        # from run import get_glacier_name
+        # glacier = get_glacier_name()
+        glacier = ""
+        filenc = "out/{}/output.nc".format(glacier)
+    else:
+        glacier = ""
+        filenc = args['<file>']
+
+    # name = sys.argv[1]
+    # filenc='/home/johanna/gitrepos/GreenlandOutletGlacier/out/'+name+'/output.nc'
+    direc = os.path.dirname(filenc)
+    exp_title = os.path.basename(os.path.abspath(os.path.join(direc, os.path.pardir, os.path.pardir)))+' - '+glacier
+
+    ds_disk = da.open_nc(filenc)
+
+    # time index
+    start = stop = step = None
+    if args['--times']:
+        time_idx = [int(t) for t in args['--times'].split(',')]
+        if -1 in time_idx:
+            # replace -1 with array size
+            nt = ds_disk.axes['time'].size
+            time_idx[time_idx.index(-1)] = nt-1
+    else:
+        if args['--start'] is not None: start = int(args['--start'])
+        if args['--stop'] is not None: stop = int(args['--stop'])
+        if args['--step'] is not None: step = int(args['--step'])
+        time_idx = slice(start, stop, step)
+
+    # x index
+    if args['--domain']:
+        xstart, xend = args['--domain'].split(',')
+        # express as integer position
+        xstart = ds_disk.axes['x'].loc(float(xstart), tol=np.inf) if xstart else None
+        xend = ds_disk.axes['x'].loc(float(xend), tol=np.inf) if xend else None
+        x_idx = slice(xstart, xend)
+    else:
+        x_idx = slice(None)
+
+    if not args['--pdf'] and not args['--html'] and not args['--png']:
+        args['--show'] = True
+
+    # check for alternative variable request to plot
+    if args['--variable'] is not None:
+        v = ds_disk.read(args['--variable'], {'time':time_idx, 'x':x_idx}, indexing='position')
+        if args['--mult']:
+            # v = v*float(args['--mult'])
+            v = v*eval(args['--mult'])
+        c_v = ds_disk.read('c', {'time':time_idx}, indexing='position')
+        gl_v = ds_disk.read('gl', {'time':time_idx}, indexing='position')
+        h = v.T.plot()
+        # also show grounding line and calving front
+        for t, _ in enumerate(v.time):
+            gl = np.argmin(np.abs(gl_v.ix[t]-v.x))
+            c = np.argmin(np.abs(c_v.ix[t]-v.x))
+            plt.scatter(v.x[gl], v.ix[t,gl], color=h[t].get_color(), marker='|')
+            plt.scatter(v.x[c], v.ix[t,c], color=h[t].get_color(), marker='o')
+        # set the x-axis range to match grid domain
+        plt.xlim([v.x[0], v.x[-1]])
+        plt.legend(frameon=False, loc='upper left')
+        ds_disk.close()
+        # save figure?
+        if args['--pdf']:
+            fig.savefig(direc+'/profile.pdf')
+        if args['--png']:
+            fig.savefig(direc+'/profile.png')
+        if args['--html']:
+            mpld3.save_html(fig,direc+'/profile.html')
+        # show figures?
+        if args['--show']:
+            # mpld3.show()
+            plt.show()
+        return 
+
+    if args['--stress']:
+        args['--variables'] = 'driving_stress,basal_stress,lateral_stress,longitudinal_stress'
+
+    # check for alternative variable request to plot
+    if args['--variables'] is not None:
+        t = -1
+        v = ds_disk.read(args['--variables'].split(','), {'time':time_idx, 'x':x_idx}, indexing='position')
+        if args['--mult']:
+            v = v*eval(args['--mult'])
+        if args['--stress']:
+            v['residual'] = v['driving_stress'] - (v['basal_stress']+v['lateral_stress']+v['longitudinal_stress'])
+            # should set some to zero
+
+        c_v = ds_disk.read('c', {'time':time_idx}, indexing='position')
+        gl_v = ds_disk.read('gl', {'time':time_idx}, indexing='position')
+        v = v.to_array(axis='name')
+        h = v.isel(time=t).T.plot()
+
+        gl = np.argmin(np.abs(gl_v.ix[t]-v.x))
+        c = np.argmin(np.abs(c_v.ix[t]-v.x))
+        for i, _ in enumerate(v.name):
+            plt.scatter(v.x[gl], v.ix[i,t,gl], color=h[i].get_color(), marker='s')
+            plt.scatter(v.x[c], v.ix[i,t,c], color=h[i].get_color(), marker='o')
+        # set the x-axis range to match grid domain
+        plt.xlim([v.x[0], v.x[-1]])
+        plt.legend(frameon=False, loc='upper left')
+        ds_disk.close()
+        # save figure?
+        if args['--pdf']:
+            fig.savefig(direc+'/profile_variables.pdf')
+        if args['--png']:
+            fig.savefig(direc+'/profile_variables.png')
+        if args['--html']:
+            mpld3.save_html(fig,direc+'/profile_variables.html')
+        # show figures?
+        if args['--show']:
+            # mpld3.show()
+            plt.show()
+        return 
+
+    #
+    # Plot Time Series to monitor glacier evolution
+    #
+    ds=ds_disk.read(['gl','c','smb_gl','flux_gl', 'H_max'])
+    ds.time[:] = np.round(ds.time,1)
+
+    fig,axes=plt.subplots(3,1,sharex=True)
+
+    ax=axes[0]
+    ds['gl'].plot(ax=ax,label='grounding line')
+    ds['c'].plot(ax=ax,label='calving front')
+    ax.legend(loc='upper left', frameon=False)
+    ax.set_title(exp_title)
+
+    ax=axes[1]
+    ds['H_max'].plot(ax=ax)
+    ax.set_ylabel('Max Thicknes (m)')
+
+    ax=axes[2]
+    ds['flux_gl'].plot(ax=ax, label="flux through gl")
+    ds['smb_gl'].plot(ax=ax, label="smb up to gl")
+    ax.set_ylabel('m^3/s')
+    ax.legend(loc='upper left', frameon=False)
+
+    # save figure?
+    if args['--pdf']:
+        fig.savefig(direc+'/timeseries.pdf')
+    if args['--png']:
+        fig.savefig(direc+'/timeseries.png')
+    if args['--html']:
+        mpld3.save_html(fig,direc+'/timeseries.html')
+
+    # if args['--show']:
+    #     mpld3.show()
+
+    #
+    # Plot glacier profiles
+    #
+    # Define nice color succession
+    # http://pythonhosted.org/ete2/reference/reference_svgcolors.html
+    colors = ['Red','OrangeRed','Gold','DarkKhaki','Green','Cyan','Turquoise','DarkCyan','Steelblue','DarkBlue','Violet','SandyBrown','Maroon']
+    colors = InfiniteList(colors) # make indexing infinite
+    indices = {'time':time_idx, 'x':x_idx}
+    ds=ds_disk.read(['hs','hb','U','gl','c','zb'], indexing='position',indices=indices)
+    ds_disk.close()
+    ds.time[:] = np.round(ds.time,1) # remove digits for cleaner display
+
+    # set all variables to NaN past the calving front, for nicer display
+    # comment out the block below to see actual values
+    c_idx =np.zeros(ds.time.size, dtype=int)  # calving front index
+    for i, c in enumerate(ds['c'].values): # iterate over calving front time slices
+        c_idx[i] = np.where(~np.isnan(ds['hs'].ix[i]))[0][-1] 
+
+    fig,axes=plt.subplots(2,1,sharex=True)
+
+    # Elevation profile
+    ax=axes[0]
+    for i,k in enumerate(ds.time):
+        ds['hs'].ix[i].plot(ax=ax,color=colors[i],label=k)
+        ds['hb'].ix[i].plot(ax=ax,color=colors[i])
+
+        # add calving front as vertical line
+        # ==> can be a visual mismatch because the x-position of the calving front
+        # is exact, whereas the y-positions (and the lines themselves) are based on 
+        # the interpolated data, one grid step before the calving front.
+        # (note the blank area is due to lines being set to NaNs after the calving
+        # front)
+        ax.vlines(ds['c'].values[i], 
+                  ds['hb'].values[i, c_idx[i]], 
+                  ds['hs'].values[i, c_idx[i]], 
+                  color=colors[i])
+
+    # add horizontal line to indicate sea level
+    ax.hlines(0, ds.x[0], ds.x[-1], linestyle='dashed', color='black')
+    ds['zb'].plot(ax=ax, color='black', linewidth=2) # add bedrock
+
+    ax.set_title(exp_title)
+
+    # Velocity profile
+    ax=axes[1]
+    ds['U']=ds['U']*3600*24
+    for i,k in enumerate(ds.time):
+        ds['U'].ix[i].plot(ax=ax,color=colors[i],label=k)
+        igl=np.argmin(np.abs(ds.x-ds['gl'].ix[i]))
+        ax.scatter(ds.x[igl],ds['U'].ix[i,igl],color=colors[i])
+        ax.set_ylabel('velocity [m/d]')
+
+    # more space on velocity graph for legend
+    ax.legend(loc='upper left', fontsize='small', frameon=False)
+
+    # set the x-axis range to match grid domain
+    ax.set_xlim([ds.x[0], ds.x[-1]])
+
+    # save figure?
+    if args['--pdf']:
+        fig.savefig(direc+'/profile.pdf')
+    if args['--png']:
+        fig.savefig(direc+'/profile.png')
+    if args['--html']:
+        mpld3.save_html(fig,direc+'/profile.html')
+
+    # show figures?
+    if args['--show']:
+        # mpld3.show()
+        plt.show()
+
+if __name__ == "__main__":
+    main()
+
