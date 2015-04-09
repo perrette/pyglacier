@@ -1,8 +1,8 @@
 """Wrapper around fortran's glacier code using ctypes
 """
 from __future__ import division, print_function
-import os, tempfile
-from ctypes import CDLL, POINTER, c_int, c_double, c_char_p, c_bool
+import os, tempfile, warnings
+from ctypes import CDLL, POINTER, c_int, c_double, c_char_p, c_bool, byref
 # from numpy import empty, diff
 import numpy as np
 
@@ -16,7 +16,12 @@ def load_lib(lib):
     _fortran = CDLL(lib)
 
 # can be changed later
-load_lib(GLACIERLIB)
+try:
+    load_lib(GLACIERLIB)
+except OSError as error:
+    warnings.warn("Please set the proper code directory: pyglacier.settings.set_codedir() or recompile before importing !")
+    # warnings.warn("please reload lib with pyglacier.wrapper.load_lib('/path/to/wrapper.so') or restart project from within code directory")
+    raise
 
 # ======================================
 # Functions to make ctypes easier to use
@@ -97,10 +102,12 @@ def apply_archimede_func(x, H, zb, rho_sw=1000., rho_i=910.):
     """
     hb = np.empty_like(H)
     hs = np.empty_like(H)
+    gl = c_int()
+    xgl = c_double()
     _fortran.apply_archimede_func(_wraparray(x), _wraparray(H), _wraparray(zb), 
                                    c_double(rho_sw), c_double(rho_i),
-                                   _wraparray(hs), _wraparray(hb), c_int(gl), c_float(xgl), c_int(x.size))
-    return hb, hs, gl, xgl
+                                   _wraparray(hs), _wraparray(hb), byref(gl), byref(xgl), c_int(x.size))
+    return hb, hs, gl.value, xgl.value
 
 # def compute_stress_func(c, x, W, zb, H, beta, A, n, m, g, rho_i, rho_sw, 
 #                           bc_upstream_type=1, bc_upstream_value=0., U0=None, 
@@ -354,14 +361,21 @@ def init(params_nml=None, input_nc=None):
     """
     _cwrap(_fortran.init)(params_nml, len(params_nml), input_nc, len(input_nc))
 
-def integrate(n, dt=3.65, out_dir=None):
+def integrate(n, dt=3.65, out_dir="", out_freq=None, out_mult=None, rst_freq=None, rst_mult=None):
     """ 
     n : int
         number of iterations
     dt : float
         timestep in days (default to 3.65 j)
     """
-    out_dir = out_dir or ""
+    out_dir = out_dir or ""  # if empty, will not print
+    if out_freq is not None: set_param_control("out_freq", out_freq)
+    if out_mult is not None: set_param_control("out_mult", out_mult)
+    if rst_freq is not None: set_param_control("rst_freq", rst_freq)
+    if rst_mult is not None: set_param_control("rst_mult", rst_mult)
+    if out_dir and not os.path.exists(out_dir):
+        print("Create output directory: "+out_dir)
+        os.makedirs(out_dir)
     _fortran.integrate(c_int(n), c_double(dt*24*3600.), out_dir, len(out_dir))
 
 def interp(x):

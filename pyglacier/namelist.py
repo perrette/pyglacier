@@ -26,6 +26,19 @@ class Namelist(Params):
     def format(self):
         return _format_nml(self)
 
+    # Handy method to get/set param
+    def get_value(self, group, name):
+        """ access like a dict
+        """
+        i = self.index(Param(name, group=group))
+        return self[i].value
+
+    def set_value(self, group, name, value):
+        """ access like a dict
+        """
+        i = self.index(Param(name, group=group))
+        self[i].value = value
+
 #
 # Work for Namelist parsing and conversion
 #

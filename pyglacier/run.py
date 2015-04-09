@@ -77,13 +77,17 @@ def run_model(years, params=None, nml=NML_DEFAULT, exe=EXE, out_dir=OUT_DIR, in_
     nml_experiment = os.path.join(out_dir, 'params.nml')
     write_namelist(nml_experiment, params=params, nml_in=nml)
 
+    def _fmt_cmd_str(fn):
+        # problem with ioparams
+        return """ '"'{}'"' """.format(fn)
+
     kwargs['years'] = years
     kwargs['nml'] = nml
-    kwargs['out_dir'] = out_dir
-    kwargs['in_file'] = in_file
+    kwargs['out_dir'] = _fmt_cmd_str(out_dir)
+    kwargs['in_file'] = _fmt_cmd_str(in_file)
     kwargs['continue'] = 'T' if continue_simu else 'F'
     if rst_file:
-        kwargs['rst_file'] = rst_file
+        kwargs['rst_file'] = _fmt_cmd_str(rst_file)
 
     # passed to executable as command line
     cmd_args += " " + " ".join(["--{} {}".format(k, kwargs[k]) for k in kwargs])
@@ -103,7 +107,7 @@ def main():
     group.add_argument("-o","--out-dir", default=OUT_DIR, help="output directory")
     group.add_argument("-i","--in-file", default=IN_FILE, help="input file")
     group.add_argument("-r","--rst-file", default=RST_FILE, help="restart file")
-    group.add_argument("-y","--years", default=100, type=int, help="years of simulation")
+    group.add_argument("-y","--years", default=100, type=float, help="years of simulation")
     group.add_argument("-c","--continue_simu", action="store_true", help="continue previous simulation")
     parser.add_argument("--cmd", default="", help="pass on arguments to fortran program (e.g. --cmd '--help'")
 

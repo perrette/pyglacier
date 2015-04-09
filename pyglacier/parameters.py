@@ -89,6 +89,8 @@ class Params(list):
             return res
         return filter(func, self)
 
+
+
     # def groupby(self, group):
     #     """ wrapper around `itertools.groupby` 
     #     >>> for group_name, group_params in params.groupby('group'):

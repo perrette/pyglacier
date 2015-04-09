@@ -7,7 +7,6 @@ so on, and all necessary state information and parameters are passed to the
 fortran code every time a function (e.g. update_velocity, update_mass...) 
 is called.
 """
-
 from __future__ import division, print_function
 import os, tempfile, datetime, shutil, copy
 import warnings
@@ -24,14 +23,33 @@ from .namelist import Namelist, Param
 from .plotting import plot_glacier
 from .run import run_model
 # from .wrapper import fortran, get_var, set_var, set_nml, get_nml
-# from .plotting import plot_glacier as _plot_glacier, plot_stress as _plot_stress
+from .plotting import plot_glacier, plot_stress
 
-DEFAULT_PARAMS = Namelist.read(NML) # default
+def load_default_nml(params_nml):
+    nml = Namelist.read(params_nml) # default
+    # make sure geometry is always taken from file 
+    # and not from some default profile
+    i = nml.index(Param('mode', group='geometry'))
+    nml[i].value = 'from_file'  
+    globals()['DEFAULT_PARAMS'] = nml # make it module-wide
+    return nml
 
-# make sure geometry is always taken from file 
-# and not from some default profile
-i = DEFAULT_PARAMS.index(Param('mode', group='geometry'))
-DEFAULT_PARAMS[i].value = 'from_file'  
+try:
+    load_default_nml(NML)
+except Exception as error:
+    warnings.warn("Could not load default namelist: please execute pyglacier.core.load_default_nml() with appropriate file, or directly set global variable pyglacier.core.DEFAULT_PARAMS. To avoid this warning, import this file from the code directory, or update pyglacier.settings first")
+
+
+def _get_param(params, name, group=None):
+    " get one Param instance from the list of params"
+    if group is not None:
+        i = params.index(Param(name, group=group))
+        param = params[i]
+    else:
+        matches = [p for p in params if p.name == name]
+        assert len(matches) == 1, 'no or multiple params found, please provide group: \n'+repr(matches)
+        param = matches[0]
+    return param
 
 class Glacier(object):
 
@@ -65,20 +83,12 @@ class Glacier(object):
     # =============================================
     def set_param(self, name, value, group=None):
         " set param values "
-        if group is not None:
-            i = self.params.index(Param(name, group=group))
-        else:
-            matches = [p for p in self.params if p.name == name]
-            assert len(matches) == 1, 'no or multiple params found, please provide group: \n'+repr(matches)
-        self.params[i].value = value
+        param = _get_param(self.params, name, group)
+        param.value = value
 
     def get_param(self, name, group=None):
-        if group is not None:
-            i = self.params.index(Param(name, group=group))
-        else:
-            matches = [p for p in self.params if p.name == name]
-            assert len(matches) == 1, 'no or multiple params found, please provide group: \n'+repr(matches)
-        return self.params[i].value
+        param = _get_param(self.params, name, group)
+        return param.value
 
     # Here I/O of whole bunch of params
     def update_params(self, params):
@@ -96,11 +106,20 @@ class Glacier(object):
     # Convert to / from dataset
     # =============================================
     _names = 'zb', 'W', 'H', 'U'  # model output: small and big letters...
-    def to_dataset(self):
+    def to_dataset(self, compute_elevation=False):
         ds = da.Dataset()
         for v in self._names:
-            ds[v] = da.DimArray(getattr(self, v.lower()), axes=[self.x], dims=['x'])
-        # ds.params_json = self.params.to_json() # save attributes as a json string, for the record
+            ds[v] = getattr(self, v.lower())
+            # ds[v] = da.DimArray(getattr(self, v.lower()), axes=[self.x], dims=['x'])
+        # also add glacier elevation gl, xgl
+        if compute_elevation:
+            hb, hs, gl, xgl = self.compute_elevation()
+            ds['hb'] = hb
+            ds['hs'] = hs
+            ds['gl'] = gl
+            ds['xgl'] = xgl
+        
+        ds.set_axis(self.x, name='x', inplace=True)
         return ds
 
     @classmethod
@@ -126,7 +145,7 @@ class Glacier(object):
     def _get_out_dir(self, create=False):
         """Generate a directory under default output directory
         """
-        outdir = os.path.join(self.workdir, str(datetime.datetime.now()))
+        outdir = os.path.join(self.workdir, str(datetime.datetime.now())).replace(" ","_")
         if not os.path.exists(outdir) and create:
             os.makedirs(outdir)
         return outdir
@@ -269,6 +288,12 @@ class Glacier(object):
         wrapper.update_velocity()
         self.u = wrapper.get_u()
 
+    def compute_elevation(self):
+        rho_sw = self.get_param('rho_sw')
+        rho_i = self.get_param('rho_i')
+        hb, hs, gl, xgl = wrapper.apply_archimede_func(self.x, self.h, self.zb, rho_sw, rho_i)
+        return hb, hs, gl, xgl
+
     def compute_stress(self, init=True):
         """ compute stress associated with current velocity and glacier profile
         """
@@ -294,7 +319,9 @@ class Glacier(object):
         ds.set_axis(wrapper.get_var('x'), name='x', inplace=True)
         return ds
 
-    def integrate_in_memory(self, timesteps, dt=3.65, out_dir=None, init=True):
+    def integrate_in_memory(self, timesteps, dt=3.65, out_dir=None, 
+                            out_freq="none", out_mult=1, rst_freq="none", rst_mult=1, 
+                            init=True):
         """ Similar to integrate, but using the wrapper so that no output
         has to be generated on disk. Note number of timesteps has to be indicated here.
         """
@@ -305,11 +332,17 @@ class Glacier(object):
         if out_dir is None:
             wrapper.set_param_control('out_freq', 'none')
             wrapper.set_param_control('rst_freq', 'none')
-        wrapper.integrate(timesteps, dt=dt, out_dir=out_dir)
+        wrapper.integrate(timesteps, dt=dt, out_dir=out_dir, out_freq=out_freq, out_mult=out_mult, rst_freq=rst_freq, rst_mult=rst_mult)
 
         # Now generate another glacier
         gl = self.from_memory(self.id)
         return gl
+
+    def plot(self, **kwargs):
+        return plot_glacier(self.to_dataset(compute_elevation=True), **kwargs)
+
+    def plot_stress(self, **kwargs):
+        return plot_stress(self.compute_stress(), **kwargs)
 
 
 # # Higher-level exchange that operates on datasets (builds on above functions)
