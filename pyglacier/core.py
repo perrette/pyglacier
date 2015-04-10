@@ -195,7 +195,7 @@ class Glacier(object):
         # read results from output file, whose geometry extends further
         # ds = self.read_output(os.path.join(self.out_dir, 'output.nc'))
         gl.params = self.params  # copy params
-        return res
+        return gl
 
     def regrid(self, x):
         ds = self.to_dataset().interp_axis(x)
