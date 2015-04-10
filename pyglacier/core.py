@@ -186,12 +186,16 @@ class Glacier(object):
         res = run_model(years, params=self.params, out_dir=self.out_dir, in_file=in_file, rst_file=in_file, **kwargs)
         if res != 0:
             warnings.warn("result value is not 0. Problem during integration?")
+            return None
 
-        # Now read results from restart file
+        # read results from restart file
         ds = da.read_nc(os.path.join(self.out_dir, 'restart.nc'))
         gl = self.from_dataset(ds)
+
+        # read results from output file, whose geometry extends further
+        # ds = self.read_output(os.path.join(self.out_dir, 'output.nc'))
         gl.params = self.params  # copy params
-        return gl
+        return res
 
     def regrid(self, x):
         ds = self.to_dataset().interp_axis(x)

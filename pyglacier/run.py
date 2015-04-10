@@ -80,7 +80,12 @@ def run_model(years, params=None, exe=EXE, out_dir=OUT_DIR, in_file=IN_FILE, rst
     # execute the fortran script
     cmd = "{exe} {cmd}".format(exe=exe, cmd=cmd_args)
     print cmd
-    return os.system(cmd)
+    res = os.system(cmd)
+
+    if os.path.exists(os.path.join(out_dir, "simu_ok")):
+        return 0
+    else:
+        return -1  # failure !
 
 
 def main():
