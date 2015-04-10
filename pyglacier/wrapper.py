@@ -6,12 +6,17 @@ from ctypes import CDLL, POINTER, c_int, c_double, c_char_p, c_bool, byref
 # from numpy import empty, diff
 import numpy as np
 
-from .settings import GLACIERLIB
+from .settings import GLACIERLIB  # first import
 # from .oldnamelist import Namelist
 from .namelist import Namelist
 
 # Load glacier library
+_fortran = None
+
 def load_lib(lib):
+    """ It is fine to load and switch across various libraries, but they
+    must be physically in different places. Will fail after recompilation.
+    """
     global _fortran
     _fortran = CDLL(lib)
 
@@ -19,9 +24,10 @@ def load_lib(lib):
 try:
     load_lib(GLACIERLIB)
 except OSError as error:
-    warnings.warn("Please set the proper code directory: pyglacier.settings.set_codedir() or recompile before importing !")
-    # warnings.warn("please reload lib with pyglacier.wrapper.load_lib('/path/to/wrapper.so') or restart project from within code directory")
+    warnings.warn("Failed to load shared library. They may also be compilation problems")
+    warnings.warn("Please setup project before loading pyglacier.setup(codedir...) or import from code dir")
     raise
+    # warnings.warn("please reload lib with pyglacier.wrapper.load_lib('/path/to/wrapper.so') or restart project from within code directory")
 
 # ======================================
 # Functions to make ctypes easier to use

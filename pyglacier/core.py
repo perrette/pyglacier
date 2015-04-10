@@ -15,9 +15,15 @@ import numpy as np
 import dimarray as da
 
 # useful for some in-memory operations
-from . import wrapper
+import pyglacier
+try:
+    from . import wrapper
+except Exception as error:
+    warnings.warn("Could not import wrapper. Please set the paths correctly or check the code version.")
+    wrapper = None
 
-from .settings import OUTDIR, NML
+# from .settings import OUTDIR, NML
+from . import settings
 from .namelist import Namelist, Param
 # from .namelist import Namelist, read_namelist_file
 from .plotting import plot_glacier
@@ -35,10 +41,11 @@ def load_default_nml(params_nml):
     return nml
 
 try:
-    load_default_nml(NML)
+    load_default_nml(settings.NML)
 except Exception as error:
-    warnings.warn("Could not load default namelist: please execute pyglacier.core.load_default_nml() with appropriate file, or directly set global variable pyglacier.core.DEFAULT_PARAMS. To avoid this warning, import this file from the code directory, or update pyglacier.settings first")
-
+    warnings.warn("Could not load default namelist")
+    warnings.warn("Please setup project before loading pyglacier.setup(codedir...) or import from code dir")
+    raise
 
 def _get_param(params, name, group=None):
     " get one Param instance from the list of params"
@@ -54,8 +61,6 @@ def _get_param(params, name, group=None):
 class Glacier(object):
 
     params = DEFAULT_PARAMS
-    workdir = OUTDIR  # under which new simulations will be created by default
-        # this is the right place for user to change that
     _class_directories = []  # history of output directories for simulation for all instances
 
     def __init__(self, x, zb, w, h, u, params=None, id=None):
@@ -145,7 +150,7 @@ class Glacier(object):
     def _get_out_dir(self, create=False):
         """Generate a directory under default output directory
         """
-        outdir = os.path.join(self.workdir, str(datetime.datetime.now())).replace(" ","_")
+        outdir = os.path.join(settings.OUTDIR, str(datetime.datetime.now())).replace(" ","_")
         if not os.path.exists(outdir) and create:
             os.makedirs(outdir)
         return outdir
