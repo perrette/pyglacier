@@ -150,7 +150,7 @@ class Glacier(object):
     def _get_out_dir(self, create=False):
         """Generate a directory under default output directory
         """
-        outdir = os.path.join(settings.OUTDIR, str(datetime.datetime.now())).replace(" ","_")
+        outdir = os.path.join(settings.OUTDIR, str(datetime.datetime.now())).replace(" ",".").replace(":","")
         if not os.path.exists(outdir) and create:
             os.makedirs(outdir)
         return outdir
