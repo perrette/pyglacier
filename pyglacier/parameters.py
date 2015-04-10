@@ -89,7 +89,26 @@ class Params(list):
             return res
         return filter(func, self)
 
+    def update(self, others, extends=False):
+        """ update existing parameters
+        """
+        for p in others:
+            if p not in self and extends:
+                self.append(p)
+            else:
+                self[self.index(p)] = p  
 
+    def search(self, **kwargs):
+        """ return one parameter matching the asked-for criteria
+        will raise an error if not exactly one param is found
+
+        >>> params.search(name='rho_i').value = 910
+        >>> params.search(name='A', group="dynamics").help
+        """
+        ps = self.filter(**kwargs)
+        assert len(ps) > 0, 'no param found'
+        assert len(ps) == 1, 'several params found'
+        return ps[0]
 
     # def groupby(self, group):
     #     """ wrapper around `itertools.groupby` 
