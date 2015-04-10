@@ -40,21 +40,7 @@ def get_checksum(codedir=CODEDIR, interactive=False, warn_if_dirty=True):
 
     return commit
 
-def write_namelist(nml_out, params=None, nml_in=NML_DEFAULT):
-    nml_params = Namelist.read(nml_in)
-    params = params or Params()
-    # print params
-    for p in params:
-        if p in nml_params:
-            nml_params[nml_params.index(p)] = p # just replace it
-        else:
-            nml_params.append(p)
-
-    # write down the updated glacier namelist
-    print "write namelist to",nml_out
-    nml_params.write(nml_out)
-
-def run_model(years, params=None, nml=NML_DEFAULT, exe=EXE, out_dir=OUT_DIR, in_file=IN_FILE, rst_file=None, continue_simu=False, cmd_args="", **kwargs):
+def run_model(years, params=None, exe=EXE, out_dir=OUT_DIR, in_file=IN_FILE, rst_file=None, continue_simu=False, cmd_args="", **kwargs):
 
     # create directory if it does not yet exists
     if not os.path.exists(out_dir):
@@ -74,14 +60,14 @@ def run_model(years, params=None, nml=NML_DEFAULT, exe=EXE, out_dir=OUT_DIR, in_
         f.write(" ".join(sys.argv))
 
     nml_experiment = os.path.join(out_dir, 'params.nml')
-    write_namelist(nml_experiment, params=params, nml_in=nml)
+    Namelist(params).write(nml_experiment)
 
     def _fmt_cmd_str(fn):
         # problem with ioparams
         return """ '"'{}'"' """.format(fn)
 
     kwargs['years'] = years
-    kwargs['nml'] = nml
+    kwargs['nml'] = nml_experiment
     kwargs['out_dir'] = _fmt_cmd_str(out_dir)
     kwargs['in_file'] = _fmt_cmd_str(in_file)
     kwargs['continue'] = 'T' if continue_simu else 'F'
@@ -116,17 +102,20 @@ def main():
 
     args = parser.parse_args()
 
+    # read default namelist
+    params = Namelist.read(args.nml)
+
     # update from command line parameters?
     if args.json or args.json_file:
         if args.json:
-            params=json.loads(args.json)
+            params_update = json.loads(args.json)
         else:
             with open(args.json_file) as f:
-                params=json.load(f)
-    else:
-        params = None
+                params_update = json.load(f)
+        params.update(params_update)
 
-    response = run_model(args.years, continue_simu=args.continue_simu, params=params, nml=args.nml, exe=args.exe, out_dir=args.out_dir, in_file=args.in_file, rst_file=args.rst_file, cmd_args=args.cmd)
+    # update namelist
+    response = run_model(args.years, continue_simu=args.continue_simu, params=params, exe=args.exe, out_dir=args.out_dir, in_file=args.in_file, rst_file=args.rst_file, cmd_args=args.cmd)
     print 'JOB IS DONE: ', response
 
 if __name__ == "__main__":
