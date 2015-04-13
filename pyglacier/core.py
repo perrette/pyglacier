@@ -60,20 +60,18 @@ def _get_param(params, name, group=None):
 
 class Glacier(object):
 
-    params = DEFAULT_PARAMS
+    _default_params = DEFAULT_PARAMS
     _class_directories = []  # history of output directories for simulation for all instances
 
-    def __init__(self, x, zb, w, h, u, params=None, id=None):
+    def __init__(self, x, zb, w, h, u, params=None, beta=None, id=None):
         self.x = np.asarray(x)
         self.zb = np.asarray(zb)
         self.w = np.asarray(w)
         self.h = np.asarray(h)
         self.u = np.asarray(u)
+        self._beta = np.asarray(beta) if beta is not None else None
         assert self.x.shape == self.zb.shape == self.w.shape == self.h.shape == self.u.shape, 'inconsistent shapes !'
-
-        # load parameters
-        if params is not None:
-            self.update_params(params)
+        self._params = params # see params property
 
         self.outdir = None
         self._instance_directories = [] # keep track of what was created by this instance
@@ -108,6 +106,21 @@ class Glacier(object):
     def write_params(self, nml):
         self.params.write(nml)
 
+    # make params a property to check concistency with beta
+    @property
+    def params(self):
+        # user-defined basal friction?
+        params = self._params or Namelist(self._default_params)
+        if self._beta is not None:
+            params.search(name='basal_mode').value = 'prescribed'
+        else:
+            params.search(name='basal_mode').value = 'constant'
+        return params
+
+    @params.setter
+    def params(self, params):
+        self._params = params
+
     # Convert to / from dataset
     # =============================================
     _names = 'zb', 'W', 'H', 'U'  # model output: small and big letters...
@@ -123,13 +136,17 @@ class Glacier(object):
             ds['hs'] = hs
             ds['gl'] = gl
             ds['xgl'] = xgl
+
+        # check basal mode
+        if self._beta is not None:
+            ds['beta'] = self._beta
         
         ds.set_axis(self.x, name='x', inplace=True)
         return ds
 
     @classmethod
     def from_dataset(cls, ds):
-        return cls(ds.x, ds['zb'], ds['W'], ds['H'], ds['U'])
+        return cls(ds.x, ds['zb'], ds['W'], ds['H'], ds['U'], beta=ds['beta'] if 'beta' in ds else None)
 
     # Convenience methods
     # =========================================
@@ -267,6 +284,7 @@ class Glacier(object):
         dir_name = tempfile.mkdtemp(prefix='glacier_init') # tempfile
         params_nml = os.path.join(dir_name, 'params.nml')
         input_nc = os.path.join(dir_name, 'input.nc')
+
         self.params.write(params_nml) # write params to file
         self.to_dataset().write_nc(input_nc)
         wrapper.init(params_nml, input_nc)
@@ -292,16 +310,51 @@ class Glacier(object):
         init : True by default
             reinitialize in-memory glacier (read params, netcdf etc...)
         """
+        interp_mode = self.get_param("interp_mode")
+        self.set_param("interp_mode","none")
         if init:
             self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
         wrapper.update_velocity()
-        self.u = wrapper.get_u()
+        self.u = wrapper.get_var('u') # do not include last value...
+        self.set_param("interp_mode",interp_mode) # back to initial value
 
+    # def compute_velocity(self):
+    #     wrapper.compute_velocity_func(x, W, zb, H, A, n, beta, m, g, rho_i, rho_sw, 
+    #                       bc_upstream_type=1, bc_upstream_value=0., U0=None, 
+    #                       stress_only=False):
+    #
     def compute_elevation(self):
         rho_sw = self.get_param('rho_sw')
         rho_i = self.get_param('rho_i')
         hb, hs, gl, xgl = wrapper.apply_archimede_func(self.x, self.h, self.zb, rho_sw, rho_i)
         return hb, hs, gl, xgl
+
+    # quick access to gl, xgl and so on
+    # =================================
+    @property
+    def gl(self):
+        hb, hs, gl, xgl = self.compute_elevation()
+        return gl
+
+    @property
+    def xgl(self):
+        hb, hs, gl, xgl = self.compute_elevation()
+        return xgl
+
+    @property
+    def hs(self):
+        hb, hs, gl, xgl = self.compute_elevation()
+        return hs
+
+    @property
+    def hb(self):
+        hb, hs, gl, xgl = self.compute_elevation()
+        return hb
+
+    @property
+    def xgl(self):
+        hb, hs, gl, xgl = wrapper.apply_archimede_func(self.x, self.h, self.zb, rho_sw, rho_i)
+        return xgl
 
     def compute_stress(self, init=True):
         """ compute stress associated with current velocity and glacier profile
@@ -315,6 +368,29 @@ class Glacier(object):
             ds[v] = wrapper.get_var(v)
         ds.set_axis(wrapper.get_var('x'), name='x', inplace=True)
         return ds
+
+    # quick access to stress properties
+    # =================================
+    @property
+    def driving_stress(self):
+        ds = self.compute_stress()
+        return ds['driving_stress']
+    @property
+    def lat_stress(self):
+        ds = self.compute_stress()
+        return ds['lat_stress']
+    @property
+    def long_stress(self):
+        ds = self.compute_stress()
+        return ds['long_stress']
+    @property
+    def basal_stress(self):
+        ds = self.compute_stress()
+        return ds['basal_stress']
+    @property
+    def residual_stress(self):
+        ds = self.compute_stress()
+        return ds['residual_stress']
 
     def compute_mass_balance(self, init=True):
         if init:

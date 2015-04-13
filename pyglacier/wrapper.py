@@ -103,7 +103,7 @@ def apply_archimede_func(x, H, zb, rho_sw=1000., rho_i=910.):
     -------
     hb : bottom elevation
     hs : surface elevation
-    gl : index of last cell preceding the grounding line
+    gl : 0-based index of last cell preceding the grounding line
     xgl : interpolated grounding line position (between cells)
     """
     hb = np.empty_like(H)
@@ -113,7 +113,7 @@ def apply_archimede_func(x, H, zb, rho_sw=1000., rho_i=910.):
     _fortran.apply_archimede_func(_wraparray(x), _wraparray(H), _wraparray(zb), 
                                    c_double(rho_sw), c_double(rho_i),
                                    _wraparray(hs), _wraparray(hb), byref(gl), byref(xgl), c_int(x.size))
-    return hb, hs, gl.value, xgl.value
+    return hb, hs, gl.value-1, xgl.value
 
 # def compute_stress_func(c, x, W, zb, H, beta, A, n, m, g, rho_i, rho_sw, 
 #                           bc_upstream_type=1, bc_upstream_value=0., U0=None, 
