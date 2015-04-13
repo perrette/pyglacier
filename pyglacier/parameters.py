@@ -87,7 +87,7 @@ class Params(list):
             for k in kwargs:
                 res = res and getattr(p, k) == kwargs[k]
             return res
-        return filter(func, self)
+        return self.__class__(filter(func, self))
 
     def update(self, others, extends=False):
         """ update existing parameters
