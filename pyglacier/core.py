@@ -81,6 +81,10 @@ class Glacier(object):
     def size(self):
         return self.x.size
 
+    @property
+    def dx(self):
+        return np.gradient(self.x)
+
     # Convenience methods to set / get param values 
     # and to common read / write / update operations
     # =============================================
