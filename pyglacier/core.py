@@ -408,6 +408,26 @@ class Glacier(object):
         ds.set_axis(wrapper.get_var('x'), name='x', inplace=True)
         return ds
 
+    @property
+    def smb(self):
+        ds = self.compute_mass_balance()
+        return ds['smb']
+
+    @property
+    def basalmelt(self):
+        ds = self.compute_mass_balance()
+        return ds['basalmelt']
+
+    @property
+    def fjordmelt(self):
+        ds = self.compute_mass_balance()
+        return ds['fjordmelt']
+
+    @property
+    def dynmb(self):
+        ds = self.compute_mass_balance()
+        return ds['dynmb']
+
     def integrate_in_memory(self, timesteps, dt=3.65, out_dir=None, 
                             out_freq="none", out_mult=1, rst_freq="none", rst_mult=1, 
                             init=True):
