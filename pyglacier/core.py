@@ -379,8 +379,7 @@ class Glacier(object):
 
     @property
     def xc(self):
-        self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
-        return wrapper.get_xc()
+        return wrapper.get_var('x')[wrapper.get_c()] # will do it for now
 
     def compute_stress(self, init=True):
         """ compute stress associated with current velocity and glacier profile
@@ -475,6 +474,17 @@ class Glacier(object):
     def plot_stress(self, **kwargs):
         return plot_stress(self.compute_stress(), **kwargs)
 
+    def plot_massbalance(self, ax=None, **kwargs):
+        import matplotlib.pyplot as plt
+        ax = ax or plt.gca()
+        scal = 365*3600*24
+        ds = self.compute_mass_balance()*scal
+        res = ds['smb']+ds['dynmb']-ds['fjordmelt']-ds['basalmelt']
+        ax.plot(self.x, ds['dynmb'], label='dynmb', **kwargs)
+        ax.plot(self.x, ds['smb'], label='smb', **kwargs)
+        ax.plot(self.x, ds['fjordmelt'], label='fjordmelt', **kwargs)
+        ax.plot(self.x, res, label='residual', **kwargs)
+        ax.set_ylabel("meters / year")
 
 # # Higher-level exchange that operates on datasets (builds on above functions)
 # # --------------------------------------------------------------------------
