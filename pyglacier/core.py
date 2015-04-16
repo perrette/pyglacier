@@ -360,10 +360,27 @@ class Glacier(object):
         hb, hs, gl, xgl = self.compute_elevation()
         return hb
 
+    def calve(self):
+        """ check calving front position
+        """
+        self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
+        wrapper.glacier_calving()
+        # xc = wrapper.get_xc()
+        self.h = wrapper.get_var('h') # update H
+        # return wrapper.get_xc()
+
+    #
+    # Calving front: should be representative of 
+    #
     @property
-    def xgl(self):
-        hb, hs, gl, xgl = wrapper.apply_archimede_func(self.x, self.h, self.zb, rho_sw, rho_i)
-        return xgl
+    def c(self):
+        self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
+        return wrapper.get_c()
+
+    @property
+    def xc(self):
+        self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
+        return wrapper.get_xc()
 
     def compute_stress(self, init=True):
         """ compute stress associated with current velocity and glacier profile
