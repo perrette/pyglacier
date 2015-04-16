@@ -279,7 +279,7 @@ class Glacier(object):
     # Handy in-memory operations
     # =========================================
 
-    def _in_memory_init(self, id=None):
+    def _in_memory_init(self, id=None, fixedgrid=True):
         """ Set glacier parameters and state variables
         """
         if id is not None:
@@ -289,7 +289,12 @@ class Glacier(object):
         params_nml = os.path.join(dir_name, 'params.nml')
         input_nc = os.path.join(dir_name, 'input.nc')
 
-        self.params.write(params_nml) # write params to file
+        if fixedgrid:
+            pars = Namelist([p for p in self.params])
+            pars.search(name="interp_mode").value="none"
+            pars.write(params_nml) # write params to file
+        else:
+            self.params.write(params_nml) # write params to file
         self.to_dataset().write_nc(input_nc)
         wrapper.init(params_nml, input_nc)
         shutil.rmtree(dir_name)
@@ -399,7 +404,7 @@ class Glacier(object):
     def compute_mass_balance(self, init=True):
         if init:
             self._in_memory_init(self.id) # set a in-memory glacier that is ready for further computation
-        wrapper.update_mass_balance()  # compute all mass balance fluxes
+        wrapper.update_massbalance()  # compute all mass balance fluxes
 
         ds = da.Dataset()
         _variables = ["smb","basalmelt","fjordmelt", "dynmb"]  # mass balance
@@ -430,12 +435,12 @@ class Glacier(object):
 
     def integrate_in_memory(self, timesteps, dt=3.65, out_dir=None, 
                             out_freq="none", out_mult=1, rst_freq="none", rst_mult=1, 
-                            init=True):
+                            init=True, fixedgrid=False):
         """ Similar to integrate, but using the wrapper so that no output
         has to be generated on disk. Note number of timesteps has to be indicated here.
         """
         if init:
-            self._in_memory_init(self.id)
+            self._in_memory_init(self.id, fixedgrid=fixedgrid)
 
         # If out-dir is None, do not produce outputs !
         if out_dir is None:
