@@ -14,16 +14,16 @@ Getting started
 
 The following output will be printed to screen:
 
-===============
-Setup pyglacier
-===============
-...pyglacier version:  0.0.0.dev-15faa90
-...fortran code directory:  ../glaciercode//
-...fortran code version:  73b7f72
-...default executable:  $CODEDIR/main.exe
-...default glacier lib:  $CODEDIR/.obj/wrapper.so
-...default namelist:  $CODEDIR/params.nml
-...default output directory:  ./out/
+    ===============
+    Setup pyglacier
+    ===============
+    ...pyglacier version:  0.0.0.dev-15faa90
+    ...fortran code directory:  ../glaciercode//
+    ...fortran code version:  73b7f72
+    ...default executable:  $CODEDIR/main.exe
+    ...default glacier lib:  $CODEDIR/.obj/wrapper.so
+    ...default namelist:  $CODEDIR/params.nml
+    ...default output directory:  ./out/
 
 You can then define a glacier class from restart file 
 (or whatever netCDF file with the expected glacier fields):
