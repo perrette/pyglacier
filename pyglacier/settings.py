@@ -23,7 +23,7 @@ def set_paths(codedir=None, outdir=None, infile=None, rstfile=None, nml=None, li
     else:
         GLACIERLIB = lib
     if nml is None:
-        NML = CODEDIR +'params.nml'
+        NML = CODEDIR +'params_default.nml'
     else:
         NML = nml
     if exe is None:
