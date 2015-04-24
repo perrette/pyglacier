@@ -63,23 +63,6 @@ if not ISRELEASED:
 else:
     FULLVERSION += QUALIFIER
 
-#
-# Actually important part
-#
-setup(name='pyglacier',
-      version=FULLVERSION,
-      author='Mahe Perrette',
-      author_email='mahe.perrette@pik-potsdam.de',
-      description='Wrapper and helper methods to run the fortran glacier model',
-      keywords=('fortran','glacier','wrapper'),
-      # basic stuff here
-      packages = ['pyglacier'],
-      scripts = ['scripts/view_glacier', 'scripts/run_glacier'],
-      long_description=long_description,
-      license = "MIT",
-      )
-
-
 def write_version_py(filename=None):
     cnt = """\
 version = '%s'
@@ -96,3 +79,19 @@ short_version = '%s'
 # Write version.py to dimarray
 if write_version:
     write_version_py()
+
+#
+# Actually important part
+#
+setup(name='pyglacier',
+      version=FULLVERSION,
+      author='Mahe Perrette',
+      author_email='mahe.perrette@pik-potsdam.de',
+      description='Wrapper and helper methods to run the fortran glacier model',
+      keywords=('fortran','glacier','wrapper'),
+      # basic stuff here
+      packages = ['pyglacier'],
+      scripts = ['scripts/view_glacier', 'scripts/run_glacier'],
+      long_description=long_description,
+      license = "MIT",
+      )
